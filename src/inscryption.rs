@@ -1,4 +1,4 @@
-use crate::{FightManager, SigilHandler};
+use crate::{FightManager, SigilEvent, SigilHandler};
 
 #[derive(Clone, Debug)]
 enum Sigil {
@@ -17,13 +17,3 @@ enum Sigil {
 }
 
 struct Handler;
-impl SigilHandler for Handler {
-    type Sigil = Sigil;
-
-    fn handle_sigil(sigil: Self::Sigil, fight_manager: &FightManager<Self>) {
-        match sigil {
-            Sigil::BifucatedStrike => todo!(),
-            _ => todo!("This sigil ({sigil:?}) is not implemented yet"),
-        }
-    }
-}
