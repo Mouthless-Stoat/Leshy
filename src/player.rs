@@ -1,4 +1,7 @@
+use crate::Card;
+
 /// Player ID for the first and second player
+#[derive(Clone, Copy)]
 #[allow(missing_docs)]
 pub enum PlayerID {
     First,

@@ -1,3 +1,5 @@
+use crate::PlayerID;
+
 /// Representation of the data of the card, this is the original unmodified data of the card.
 /// To modify this data use a [`Card`] instead, which is simply a wrapper around this type, with
 /// ability to modify the data.
@@ -26,7 +28,7 @@ impl<Sigil: Clone> CardData<Sigil> {
     }
 }
 
-/// Representation of a playing card, both in the hand and
+/// Representation of a playing card, both in the hand and on the board.
 #[derive(Clone)]
 pub struct Card<Sigil: Clone + 'static> {
     /// Modification to the power of the card.
@@ -34,6 +36,8 @@ pub struct Card<Sigil: Clone + 'static> {
     /// Modification to the health of the card.
     pub health_mod: isize,
     data: &'static CardData<Sigil>,
+    /// The owner of this card.
+    pub owner: PlayerID,
 }
 
 impl<Sigil: Clone> Card<Sigil> {
