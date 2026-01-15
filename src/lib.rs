@@ -2,6 +2,11 @@
 //!
 //! A framework for creating rule engine for Inscryption, it handle everything from combat to
 //! sigils handling as well as win condition and card interaction.
+//!
+//! The main type is the [`FightManager`], this handle everything to do with a fight, from board to
+//! player and sigil event. The method on the manager is the only function that handle sigil events
+//! automatically, if one were to call another method like [`Player::draw`] this would not
+//! automatically handle the [`SigilEvent::OnDraw`] event.
 
 mod board;
 use board::*;
@@ -30,6 +35,8 @@ pub enum Error {
 }
 
 /// The manager for a fight, this is the main entry point for most situation to simulate a game.
+/// Method on the manager will automatically handle sigil event as well as any propagation of these
+/// event.
 ///
 /// The generic type `Handler` must implement the [`SigilHandler`] type. This `Handler`
 /// is responsible to handling how sigil resolve. The handler is called whenever a [`SigilEvent`]
@@ -51,6 +58,8 @@ pub struct FightManager<Handler: SigilHandler> {
 }
 
 impl<Sigil: Clone> Player<Sigil> {
+    /// Add `card` into the player hand. To draw a card from the player's deck use
+    /// [`draw_deck`](Player::draw_deck) instead.
     pub fn draw(&mut self, card: Card<Sigil>) {
         self.hand.push(card);
     }
