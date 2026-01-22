@@ -10,19 +10,24 @@ pub enum Slot<Sigil: Clone + 'static> {
 }
 
 /// Representation of a collection of [`Slot`] for the board.
+///
+/// [`first`](Board::first) and [`second`](Board::second) store the slot from their respective
+/// player perspective. That mean when seeing which card is opposing each other the slot should be
+/// in verse for the opposing player: first player left most card (0) opposed second player right
+/// most card (3).
 #[derive(Clone)]
 #[allow(missing_docs)]
 pub struct Board<Sigil: Clone + 'static> {
-    pub p1: Vec<Slot<Sigil>>,
-    pub p2: Vec<Slot<Sigil>>,
+    pub first: Vec<Slot<Sigil>>,
+    pub second: Vec<Slot<Sigil>>,
 }
 
 impl<Sigil: Clone> Board<Sigil> {
-    /// Create a new, empty [`Board`]. All slot are filled with blank
+    /// Create a new, empty [`Board`]. All slot are filled with [`Slot::Blank`]
     pub fn new() -> Self {
         Board {
-            p1: vec![Slot::Blank; 4],
-            p2: vec![Slot::Blank; 4],
+            first: vec![Slot::Blank; 4],
+            second: vec![Slot::Blank; 4],
         }
     }
 }

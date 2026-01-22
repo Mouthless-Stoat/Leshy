@@ -20,7 +20,7 @@ pub use sigil::*;
 mod player;
 pub use player::*;
 
-mod inscryption;
+pub mod inscryption;
 
 /// Common result type return between library function and method.
 ///
@@ -38,12 +38,13 @@ pub enum Error {
 /// Method on the manager will automatically handle sigil event as well as any propagation of these
 /// event.
 ///
-/// The generic type `Handler` must implement the [`SigilHandler`] type. This `Handler`
-/// is responsible to handling how sigil resolve. The handler is called whenever a [`SigilEvent`]
+/// The generic type `Handler` must implement the [`SigilHandler`] type. This `Handler` is
+/// responsible to handling how sigil resolve. The handler is called whenever a [`SigilEvent`]
 /// happens, it is then given the sigil current being process, the event that trigger this handle
 /// and the state of the fight with the ability mutate it. Sigils are activated in order starting
-/// with the first columns from the first player perspective and in the order they are in on the
-/// card. All sigils are process during every [`SigilEvent`].
+/// with the first column from the active player perspective and in the order they are in on the
+/// card then move to the first column from the non-active player perspective. All sigils are
+/// process during every [`SigilEvent`].
 ///
 /// Each [`SigilHandler`] handle a specific custom `Sigil` type, usually this is an enum refer to
 /// the default [`inscryption`] implement for examples.
@@ -55,6 +56,7 @@ pub struct FightManager<Handler: SigilHandler> {
     /// plyaer and negative mean in favor of the second player.
     pub scale: isize,
     player: (Player<Handler::Sigil>, Player<Handler::Sigil>),
+    active_player: PlayerID,
 }
 
 impl<Sigil: Clone> Player<Sigil> {
@@ -64,6 +66,8 @@ impl<Sigil: Clone> Player<Sigil> {
         self.hand.push(card);
     }
 
+    /// Draw a card from the player deck. To add a card into the player hand use
+    /// [`draw`](Player::draw) instead.
     pub fn draw_deck(&mut self) -> Result<()> {
         let card = self.decks.pop().ok_or(Error::PlayerStarve)?;
         self.draw(card);
@@ -78,25 +82,34 @@ impl<Handler: SigilHandler> FightManager<Handler> {
     /// Will return [`Error::PlayerStarve`] if stravation occur and handle
     /// [`SigilEvent::OnPlayerStarve`] as well
     pub fn draw(&mut self, player: PlayerID) -> Result<()> {
-        for card in self.board.p1.clone() {
+        for card in self.activation_order() {
             match card {
                 Slot::Card(card) => {
-                    let Some(drawn_card) = (match player {
+                    let draw_temp = match player {
                         PlayerID::First => self.player.0.decks.pop(),
                         PlayerID::Second => self.player.1.decks.pop(),
-                    }) else {
+                    };
+
+                    let Some(drawn_card) = draw_temp else {
+                        self.handle_card_sigil(
+                            &card,
+                            Context {
+                                event: SigilEvent::OnPlayerStarve(player),
+                                cause: None,
+                                card: &card,
+                            },
+                        );
                         return Err(Error::PlayerStarve);
                     };
 
-                    let ctx = Context {
-                        event: SigilEvent::OnDraw,
-                        cause: &drawn_card,
-                        card: &card,
-                        fight_manager: self,
-                    };
-                    for sigil in card.data().sigils() {
-                        Handler::handle_sigil(sigil.clone(), &ctx);
-                    }
+                    self.handle_card_sigil(
+                        &card,
+                        Context {
+                            event: SigilEvent::OnDraw,
+                            cause: Some(&drawn_card),
+                            card: &card,
+                        },
+                    );
                     match player {
                         PlayerID::First => self.player.0.draw(drawn_card),
                         PlayerID::Second => self.player.1.draw(drawn_card),
@@ -106,5 +119,35 @@ impl<Handler: SigilHandler> FightManager<Handler> {
             }
         }
         Ok(())
+    }
+
+    /// Handle all the sigils on a `card` with a given `ctx`.
+    pub fn handle_card_sigil(&mut self, card: &Card<Handler::Sigil>, ctx: Context<Handler>) {
+        for sigil in card.data().sigils() {
+            Handler::handle_sigil(sigil.clone(), &ctx, self);
+        }
+    }
+
+    /// Return the correct sigil activation order.
+    ///
+    /// Start with the left most card from the current player then the other player left most from
+    /// that player perspective.
+    pub fn activation_order(&self) -> Vec<Slot<Handler::Sigil>> {
+        match self.active_player {
+            PlayerID::First => self
+                .board
+                .first
+                .iter()
+                .chain(self.board.second.iter())
+                .cloned()
+                .collect(),
+            PlayerID::Second => self
+                .board
+                .second
+                .iter()
+                .chain(self.board.first.iter())
+                .cloned()
+                .collect(),
+        }
     }
 }
