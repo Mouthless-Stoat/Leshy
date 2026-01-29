@@ -1,4 +1,4 @@
-use crate::{FightManager, SigilEvent, SigilHandler};
+use crate::{FightManager, SigilEvent, SigilTrait};
 
 #[derive(Clone, Debug)]
 enum Sigil {
@@ -15,5 +15,3 @@ enum Sigil {
     Guardian,
     Burrower,
 }
-
-struct Handler;

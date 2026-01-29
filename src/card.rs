@@ -1,4 +1,4 @@
-use crate::PlayerID;
+use crate::{PlayerID, sigil};
 
 /// Representation of the data of the card, this is the original unmodified data of the card.
 /// To modify this data use a [`Card`] instead, which is simply a wrapper around this type, with
@@ -23,6 +23,11 @@ impl<Sigil: Clone> CardData<Sigil> {
     }
 
     /// The sigils on this card.
+    pub fn sigils_mut(&mut self) -> &mut [Sigil] {
+        &mut self.sigils
+    }
+
+    /// The sigils on this card.
     pub fn sigils(&self) -> &Vec<Sigil> {
         &self.sigils
     }
@@ -35,14 +40,8 @@ pub struct Card<Sigil: Clone + 'static> {
     pub pow_mod: isize,
     /// Modification to the health of the card.
     pub health_mod: isize,
-    data: &'static CardData<Sigil>,
+    pub data: &'static CardData<Sigil>,
     /// The owner of this card.
     pub owner: PlayerID,
-}
-
-impl<Sigil: Clone> Card<Sigil> {
-    /// The base original data used for the card.
-    pub fn data(&self) -> &'static CardData<Sigil> {
-        self.data
-    }
+    pub sigils: Vec<Sigil>,
 }

@@ -49,13 +49,13 @@ pub enum Error {
 /// Each [`SigilHandler`] handle a specific custom `Sigil` type, usually this is an enum refer to
 /// the default [`inscryption`] implement for examples.
 #[derive(Clone)]
-pub struct FightManager<Handler: SigilHandler> {
+pub struct FightManager<Sigil: SigilTrait> {
     /// The board use for this fight. This will be mutated if an action affect the board state.
-    pub board: Board<Handler::Sigil>,
+    pub board: Board<Sigil>,
     /// The current state of the scale, positive value indicate the scale is in favor of the first
     /// plyaer and negative mean in favor of the second player.
     pub scale: isize,
-    player: (Player<Handler::Sigil>, Player<Handler::Sigil>),
+    player: (Player<Sigil>, Player<Sigil>),
     active_player: PlayerID,
 }
 
@@ -75,56 +75,44 @@ impl<Sigil: Clone> Player<Sigil> {
     }
 }
 
-impl<Handler: SigilHandler> FightManager<Handler> {
-    /// Draw a card from `player` deck. This also trigger the [`SigilEvent::OnDraw`] events after
-    /// the card is drawn but before being added to the hand.
+impl<Sigil: SigilTrait> FightManager<Sigil> {
+    /// Draw a card from `player` deck. This also trigger the [`SigilEvent::OnDraw`]
+    /// events for the drawn card first then the rest of the board after. These all
+    /// triggers after the card is drawn (i.e removed from the deck) but before
+    /// being added to the hand.
     ///
     /// Will return [`Error::PlayerStarve`] if stravation occur and handle
-    /// [`SigilEvent::OnPlayerStarve`] as well
+    /// [`SigilEvent::OnPlayerStarve`] as well.
     pub fn draw(&mut self, player: PlayerID) -> Result<()> {
-        for card in self.activation_order() {
-            match card {
-                Slot::Card(card) => {
-                    let draw_temp = match player {
-                        PlayerID::First => self.player.0.decks.pop(),
-                        PlayerID::Second => self.player.1.decks.pop(),
-                    };
-
-                    let Some(drawn_card) = draw_temp else {
-                        self.handle_card_sigil(
-                            &card,
-                            Context {
-                                event: SigilEvent::OnPlayerStarve(player),
-                                cause: None,
-                                card: &card,
-                            },
-                        );
-                        return Err(Error::PlayerStarve);
-                    };
-
-                    self.handle_card_sigil(
-                        &card,
-                        Context {
-                            event: SigilEvent::OnDraw,
-                            cause: Some(&drawn_card),
-                            card: &card,
-                        },
-                    );
-                    match player {
-                        PlayerID::First => self.player.0.draw(drawn_card),
-                        PlayerID::Second => self.player.1.draw(drawn_card),
-                    }
-                }
-                Slot::Blank => (),
-            }
+        let draw_temp = match player {
+            PlayerID::First => self.player.0.decks.pop(),
+            PlayerID::Second => self.player.1.decks.pop(),
+        };
+        let Some(mut drawn_card) = draw_temp else {
+            self.handle_sigils(SigilEvent::OnPlayerStarve(player), None);
+            return Err(Error::PlayerStarve);
+        };
+        self.handle_sigils(SigilEvent::OnDraw, Some(&mut drawn_card));
+        match player {
+            PlayerID::First => self.player.0.draw(drawn_card),
+            PlayerID::Second => self.player.1.draw(drawn_card),
         }
         Ok(())
     }
 
-    /// Handle all the sigils on a `card` with a given `ctx`.
-    pub fn handle_card_sigil(&mut self, card: &Card<Handler::Sigil>, ctx: Context<Handler>) {
-        for sigil in card.data().sigils() {
-            Handler::handle_sigil(sigil.clone(), &ctx, self);
+    /// Handle all the sigils on a `card` with a given `event` and `cause`.
+    pub fn handle_sigils(&mut self, event: SigilEvent, cause: Option<&mut Card<Sigil>>) {
+        let ctx = Context { event, cause };
+        for card in self.activation_order() {
+            match card {
+                Slot::Card(mut card) => {
+                    let sigils = std::mem::take(&mut card.sigils);
+                    for mut s in sigils {
+                        s.handle_sigil(&mut card, &ctx, self);
+                    }
+                }
+                Slot::Blank => (),
+            }
         }
     }
 
@@ -132,7 +120,7 @@ impl<Handler: SigilHandler> FightManager<Handler> {
     ///
     /// Start with the left most card from the current player then the other player left most from
     /// that player perspective.
-    pub fn activation_order(&self) -> Vec<Slot<Handler::Sigil>> {
+    pub fn activation_order(&self) -> Vec<Slot<Sigil>> {
         match self.active_player {
             PlayerID::First => self
                 .board
