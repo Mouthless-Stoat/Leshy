@@ -59,44 +59,54 @@ pub struct FightManager<Sigil: SigilTrait> {
     active_player: PlayerID,
 }
 
-impl<Sigil: Clone> Player<Sigil> {
-    /// Add `card` into the player hand. To draw a card from the player's deck use
-    /// [`draw_deck`](Player::draw_deck) instead.
-    pub fn draw(&mut self, card: Card<Sigil>) {
-        self.hand.push(card);
-    }
-
-    /// Draw a card from the player deck. To add a card into the player hand use
-    /// [`draw`](Player::draw) instead.
-    pub fn draw_deck(&mut self) -> Result<()> {
-        let card = self.decks.pop().ok_or(Error::PlayerStarve)?;
-        self.draw(card);
-        Ok(())
-    }
-}
-
 impl<Sigil: SigilTrait> FightManager<Sigil> {
-    /// Draw a card from `player` deck. This also trigger the [`SigilEvent::OnDraw`]
-    /// events for the drawn card first then the rest of the board after. These all
-    /// triggers after the card is drawn (i.e removed from the deck) but before
-    /// being added to the hand.
+    /// Draw a card from `player` deck. This also trigger the [`SigilEvent::OnDraw`] events for
+    /// the drawn card first then the rest of the board after. These all triggers after the
+    /// card is drawn (i.e removed from the deck) but before it is added to the hand.
     ///
-    /// Will return [`Error::PlayerStarve`] if stravation occur and handle
+    /// When the event trigger on the card being drawn, a copy of the card is made instead due to
+    /// some rust limitation and then the mutated copy is put back into the hand.
+    ///
+    /// Will return [`Error::PlayerStarve`] if starvation occur and handle
     /// [`SigilEvent::OnPlayerStarve`] as well.
     pub fn draw(&mut self, player: PlayerID) -> Result<()> {
         let draw_temp = match player {
             PlayerID::First => self.player.0.decks.pop(),
             PlayerID::Second => self.player.1.decks.pop(),
         };
-        let Some(mut drawn_card) = draw_temp else {
+        let Some(drawn_card) = draw_temp else {
             self.handle_sigils(SigilEvent::OnPlayerStarve(player), None);
             return Err(Error::PlayerStarve);
         };
+        let mut drawn_card = match player {
+            PlayerID::First => {
+                self.player.0.draw(drawn_card);
+                self.player
+                    .0
+                    .hand
+                    .last_mut()
+                    .expect("Oh on this shouldn't happen.\nUnable to obtain drawn card from hand.")
+                    .clone()
+            }
+            PlayerID::Second => {
+                self.player.1.draw(drawn_card);
+                self.player
+                    .1
+                    .hand
+                    .last_mut()
+                    .expect("Oh on this shouldn't happen.\nUnable to obtain drawn card from hand.")
+                    .clone()
+            }
+        };
         self.handle_sigils(SigilEvent::OnDraw, Some(&mut drawn_card));
-        match player {
-            PlayerID::First => self.player.0.draw(drawn_card),
-            PlayerID::Second => self.player.1.draw(drawn_card),
-        }
+        std::mem::swap(
+            self.player
+                .0
+                .hand
+                .last_mut()
+                .expect("Oh no this shouldn't happen.\nUnable to obtain drawn card from hand."),
+            &mut drawn_card,
+        );
         Ok(())
     }
 
@@ -106,10 +116,11 @@ impl<Sigil: SigilTrait> FightManager<Sigil> {
         for card in self.activation_order() {
             match card {
                 Slot::Card(mut card) => {
-                    let sigils = std::mem::take(&mut card.sigils);
-                    for mut s in sigils {
+                    let mut sigils = std::mem::take(&mut card.sigils);
+                    for s in &mut sigils {
                         s.handle_sigil(&mut card, &ctx, self);
                     }
+                    card.sigils = sigils
                 }
                 Slot::Blank => (),
             }
