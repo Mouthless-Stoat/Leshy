@@ -1,0 +1,9 @@
+[package]
+name = "leshy"
+version = "0.1.0"
+edition = "2024"
+
+[lints.rust]
+missing_docs = "warn"
+
+[dependencies]
