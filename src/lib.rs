@@ -1,15 +1,15 @@
 pub struct FightManager<S: Sigil> {
     pub board: Board,
-    pub cards: Vec<CardData<S>>,
+    pub cards: Vec<Card<S>>,
     pub active_player: PlayerID,
     pub players: (Player<S>, Player<S>),
 }
 
 /// A bundle of a raw card with its ID and wherever if the card is on the board. The FightManager
 /// uses this to handle one master copy of a card that other function borrow from.
-pub struct CardData<S: Sigil> {
+pub struct Card<S: Sigil> {
     id: CardID,
-    card: Card<S>,
+    card: CardData<S>,
     on_board: bool,
 }
 
@@ -21,7 +21,7 @@ pub enum PlayerID {
 
 pub struct Player<S: Sigil> {
     hand: Vec<CardID>,
-    deck: Vec<Card<S>>,
+    deck: Vec<CardData<S>>,
 }
 
 pub struct Board {
@@ -38,7 +38,7 @@ pub struct Slot {
 }
 
 /// The raw card data that store all the information that a card might have.
-pub struct Card<S: Sigil> {
+pub struct CardData<S: Sigil> {
     pub name: String,
     pub attack: f64,
     pub health: f64,
@@ -46,14 +46,14 @@ pub struct Card<S: Sigil> {
 }
 
 impl<S: Sigil> FightManager<S> {
-    pub fn get_mut_from_id(&mut self, id: CardID) -> Option<&mut Card<S>> {
+    pub fn get_mut_from_id(&mut self, id: CardID) -> Option<&mut CardData<S>> {
         self.cards
             .iter_mut()
             .find(|card| card.id == id)
             .map(|cd| &mut cd.card)
     }
 
-    pub fn get_from_id(&mut self, id: CardID) -> Option<&Card<S>> {
+    pub fn get_from_id(&mut self, id: CardID) -> Option<&CardData<S>> {
         self.cards
             .iter()
             .find(|card| card.id == id)
