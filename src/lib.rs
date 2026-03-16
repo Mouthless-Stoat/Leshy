@@ -1,16 +1,14 @@
+mod sigils;
+pub use sigils::*; // Re-export all of sigils stuff
+
+mod cards;
+pub use cards::*;
+
 pub struct FightManager<S: Sigil> {
     pub board: Board,
     pub cards: Vec<Card<S>>,
     pub active_player: PlayerID,
     pub players: (Player<S>, Player<S>),
-}
-
-/// A bundle of a raw card with its ID and wherever if the card is on the board. The FightManager
-/// uses this to handle one master copy of a card that other function borrow from.
-pub struct Card<S: Sigil> {
-    id: CardID,
-    card: CardData<S>,
-    on_board: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -30,34 +28,19 @@ pub struct Board {
     pub scale: f64,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CardID(isize);
-
 pub struct Slot {
     pub card_id: CardID,
 }
 
-/// The raw card data that store all the information that a card might have.
-pub struct CardData<S: Sigil> {
-    pub name: String,
-    pub attack: f64,
-    pub health: f64,
-    pub sigils: Vec<S>,
-}
-
 impl<S: Sigil> FightManager<S> {
-    pub fn get_mut_from_id(&mut self, id: CardID) -> Option<&mut CardData<S>> {
-        self.cards
-            .iter_mut()
-            .find(|card| card.id == id)
-            .map(|cd| &mut cd.card)
+    /// Get the card object from a given ID, this will be mutable.
+    pub fn get_mut_from_id(&mut self, id: CardID) -> Option<&mut Card<S>> {
+        self.cards.iter_mut().find(|card| card.id == id)
     }
 
-    pub fn get_from_id(&mut self, id: CardID) -> Option<&CardData<S>> {
-        self.cards
-            .iter()
-            .find(|card| card.id == id)
-            .map(|cd| &cd.card)
+    /// Get the card object from a given ID
+    pub fn get_from_id(&mut self, id: CardID) -> Option<&Card<S>> {
+        self.cards.iter().find(|card| card.id == id)
     }
 
     pub fn draw_card(player: PlayerID) {}
@@ -71,6 +54,7 @@ impl<S: Sigil> FightManager<S> {
                 .iter()
                 .cloned()
                 .chain(self.players.1.hand.clone())
+                .chain(self.board.first.iter().map(|s| s.card_id).clone())
                 .collect(),
             PlayerID::Second => self
                 .players
@@ -79,47 +63,8 @@ impl<S: Sigil> FightManager<S> {
                 .iter()
                 .cloned()
                 .chain(self.players.0.hand.clone())
+                .chain(self.board.second.iter().map(|s| s.card_id).clone())
                 .collect(),
         }
     }
-}
-
-/// Default Inscrytion Vanilla Sigil
-#[derive(Clone, Debug)]
-pub enum VanillaSigil {
-    BifucatedStrike,
-    BoneKing,
-    BombLatch,
-    Amorphorus,
-    RabbitHole,
-    DamBuilder,
-    BeesWithin,
-    LooseTails,
-    Sprinter,
-    Waterborne,
-    Guardian,
-    Burrower,
-}
-
-pub trait Sigil: Sized {
-    fn handle(self, fight_manager: FightManager<Self>, card: CardID, ctx: Context);
-}
-
-pub struct Context {
-    pub event: SigilEvent,
-    pub cause: CardID,
-}
-
-#[derive(Clone)]
-#[allow(clippy::enum_variant_names, missing_docs)]
-pub enum SigilEvent {
-    OnAttack,
-    OnActivate,
-    OnDeath,
-    OnDraw,
-    OnPlay,
-    OnSacrifice,
-    OnDamage,
-    OnTurnEnd,
-    OnPlayerStarve(PlayerID),
 }
